@@ -17,7 +17,6 @@
   ******************************************************************************
   */
 /* USER CODE END Header */
-
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 
@@ -91,7 +90,17 @@ int16_t Gyro_Z_RAW = 0;
 float Ax, Ay, Az, Gx, Gy, Gz;
 volatile char buffer[25];
 
-volatile float I, I_1, I_2, I_3, I_4, O, O_1, O_2, O_3, O_4;
+//variables y retardos filtro 1
+volatile float I1_k, I1_k_1, I1_k_2, O1_k, O1_k_1, O1_k_2;
+//variables y retardos filtro 2
+volatile float I2_k, I2_k_1, I2_k_2, O2_k, O2_k_1, O2_k_2;
+//variables y retardos filtro 3
+volatile float I3_k, I3_k_1, I3_k_2, O3_k, O3_k_1, O3_k_2;
+//variables y retardos filtro 4
+volatile float I4_k, I4_k_1, I4_k_2, O4_k, O4_k_1, O4_k_2;
+volatile float O;
+//variables del control
+volatile float u;
 
 void clearBuffer()
 {
@@ -151,7 +160,7 @@ void MPU6050_Read_Accel (void)
 	     for more details check ACCEL_CONFIG Register              ****/
 
 	Ax = Accel_X_RAW/16384.0;
-	Ay = Accel_Y_RAW/16384.0;
+	Ay = (0.0040048828125)*Accel_Y_RAW;
 	Az = Accel_Z_RAW/16384.0;
 }
 
@@ -164,16 +173,30 @@ void MPU6050_Read_Accel (void)
 int main(void)
 {
   /* USER CODE BEGIN 1 */
-	I = 0;
-	I_1 = 0;
-	I_2 = 0;
-	I_3 = 0;
-	I_4 = 0;
-	O = 0;
-	O_1 = 0;
-	O_2 = 0;
-	O_3 = 0;
-	O_4 = 0;
+	I1_k = 0;
+	I1_k_1 = 0;
+	I1_k_2 = 0;
+	O1_k = 0;
+	O1_k_1 = 0;
+	O1_k_2 = 0;
+	I2_k = 0;
+	I2_k_1 = 0;
+	I2_k_2 = 0;
+	O2_k = 0;
+	O2_k_1 = 0;
+	O2_k_2 = 0;
+	I3_k = 0;
+	I3_k_1 = 0;
+	I3_k_2 = 0;
+	O3_k = 0;
+	O3_k_1 = 0;
+	O3_k_2 = 0;
+	I4_k = 0;
+	I4_k_1 = 0;
+	I4_k_2 = 0;
+	O4_k = 0;
+	O4_k_1 = 0;
+	O4_k_2 = 0;
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -233,7 +256,8 @@ void SystemClock_Config(void)
   RCC_OscInitTypeDef RCC_OscInitStruct = {0};
   RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
 
-  /** Initializes the CPU, AHB and APB busses clocks
+  /** Initializes the RCC Oscillators according to the specified parameters
+  * in the RCC_OscInitTypeDef structure.
   */
   RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSE;
   RCC_OscInitStruct.HSEState = RCC_HSE_ON;
@@ -246,7 +270,7 @@ void SystemClock_Config(void)
   {
     Error_Handler();
   }
-  /** Initializes the CPU, AHB and APB busses clocks
+  /** Initializes the CPU, AHB and APB buses clocks
   */
   RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
                               |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
@@ -316,10 +340,10 @@ static void MX_TIM1_Init(void)
 
   /* USER CODE END TIM1_Init 1 */
   htim1.Instance = TIM1;
-  htim1.Init.Prescaler = 32000;
+  htim1.Init.Prescaler = 16;
   htim1.Init.CounterMode = TIM_COUNTERMODE_UP;
   htim1.Init.Period = 1000;
-  htim1.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim1.Init.ClockDivision = TIM_CLOCKDIVISION_DIV2;
   htim1.Init.RepetitionCounter = 0;
   htim1.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
   if (HAL_TIM_Base_Init(&htim1) != HAL_OK)
@@ -469,16 +493,40 @@ static void MX_GPIO_Init(void)
 
 /* USER CODE BEGIN 4 */
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim){
-	O_4 = O_3;
-	O_3 = O_2;
-	O_2 = O_1;
-	O_1 = O;
-	I_4 = I_3;
-	I_3 = I_2;
-	I_2 = I_1;
-	I_1 = I;
-	I = Ay;
-	O = 0.0048*I+0.0193*I_1+0.0289*I_2+0.019*I_3+0.0048*I_4+2.3695*O_1-2.314*O_2+1.0547*O_3-0.1874*O_4;
+	//actualización filtro 1
+	I1_k_2 = I1_k_1;
+	I1_k_1 = I1_k;
+	I1_k = Ay;
+	O1_k_2 = O1_k_1;
+	O1_k_1 = O1_k;
+	O1_k = I1_k+2.000347533644175*I1_k_1+0.999883597874393*I1_k_2+1.459706254894505*O1_k_1-0.534825985311821*O1_k_2;
+	//Actualización filtro 2
+	I2_k_2 = I2_k_1;
+	I2_k_1 = I2_k;
+	I2_k = O1_k;
+	O2_k_2 = O2_k_1;
+	O2_k_1 = O2_k;
+	O2_k = I2_k+2.030459710047579*I2_k_1+1.030928964525487*I2_k_2+1.513290765323392*O2_k_1-0.591168074136782*O2_k_2;
+	//Actualización filtro 3
+	I3_k_2 = I3_k_1;
+	I3_k_1 = I3_k;
+	I3_k = O2_k;
+	O3_k_2 = O3_k_1;
+	O3_k_1 = O3_k;
+	O3_k = I3_k+1.999652525003121*I3_k_1+1.000116453073112*I3_k_2+1.623405697566375*O3_k_1-0.706949765685962*O3_k_2;
+	//Actualización filtro 4
+	I4_k_2 = I4_k_1;
+	I4_k_1 = I4_k;
+	I4_k = O3_k;
+	O4_k_2 = O4_k_1;
+	O4_k_1 = O4_k;
+	O4_k = I4_k+1.969540231305121*I4_k_1+0.969998901008819*I4_k_2+1.793961845324269*O4_k_1-0.886283112069342*O4_k_2;
+	O = 1.76255374e-7*O4_k;
+	//Motor izquierdo
+	u = 200;
+	htim1.Instance->CCR1 = 500+u;
+	//Motor derecho
+	htim1.Instance->CCR2 = 500-u;
 }
 /* USER CODE END 4 */
 
